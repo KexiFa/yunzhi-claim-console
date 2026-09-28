@@ -1,0 +1,26 @@
+# —— 绝对不要提交（含账号/密码/Token）——
+config.json
+yz_accounts.json
+yz_token.json
+yz_login_state.json
+yz_ql_state.json
+yz_claim_log.json
+yz_auto.heartbeat
+yz_auto_out.txt
+web.log
+*.log
+
+# 运行时数据
+.yz_profiles/
+.yz_ql_profile/
+.temp/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 系统/IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

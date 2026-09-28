@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>云智手机领取控制台</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-row">
+      <span class="logo-mark">智</span>
+      <div>
+        <div class="brand-title">云智手机领取控制台</div>
+        <div class="brand-sub">云机空间每日权益 · 多账号定时领取 · Token 失效提醒</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn primary" id="btn-add">+ 添加账号</button>
+      <button type="button" class="btn" id="btn-claim-all">全部领取</button>
+      <button type="button" class="btn" id="btn-settings">系统设置</button>
+      <form method="post" action="/logout" class="inline">
+        <button type="submit" class="avatar" title="退出 {{ user }}">{{ user[:1]|upper }}</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="stats-row" id="stats-row">
+      <article class="stat-card">
+        <div>
+          <div class="stat-num" id="stat-total">{{ stats.total }}</div>
+          <div class="stat-label">配置账号总数</div>
+        </div>
+        <span class="stat-icon blue">账</span>
+      </article>
+      <article class="stat-card">
+        <div>
+          <div class="stat-num" id="stat-enabled">{{ stats.enabled }}</div>
+          <div class="stat-label">定时领取开启</div>
+        </div>
+        <span class="stat-icon green">开</span>
+      </article>
+      <article class="stat-card">
+        <div>
+          <div class="stat-num" id="stat-token">{{ stats.token_ok }}</div>
+          <div class="stat-label">Token 可用</div>
+        </div>
+        <span class="stat-icon teal">令</span>
+      </article>
+      <article class="stat-card">
+        <div>
+          <div class="stat-num" id="stat-today">{{ stats.today_ok }}</div>
+          <div class="stat-label">今日领取成功</div>
+        </div>
+        <span class="stat-icon orange">成</span>
+      </article>
+    </section>
+
+    <section class="section-head">
+      <h2>账号与领取状态</h2>
+      <span class="muted small">间隔 {{ settings.claim_interval_min }} 分钟 · 通知 {{ settings.notify }}</span>
+    </section>
+
+    <section class="account-grid" id="account-grid">
+      {% if not accounts %}
+      <div class="empty">还没有账号，点击右上角「添加账号」通过短信登录添加。</div>
+      {% endif %}
+      {% for a in accounts %}
+      <article class="account-card" data-id="{{ a.id }}">
+        <div class="acc-head">
+          <div class="acc-who">
+            <span class="acc-avatar">{{ a.avatar }}</span>
+            <div>
+              <div class="acc-name">{{ a.name }} <span class="phone">{{ a.phone_mask }}</span></div>
+              <div class="tags">
+                <span class="tag {% if a.has_token and a.token_status != '已失效' %}ok{% else %}warn{% endif %}">{{ a.token_status }}</span>
+                <span class="tag {% if a.enabled %}ok{% else %}mute{% endif %}">{% if a.enabled %}定时开启{% else %}已暂停{% endif %}</span>
+                {% if a.last_status %}<span class="tag">{{ a.last_status }}</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="acc-ops">
+            <button type="button" class="icon-btn btn-edit" title="改名">编辑</button>
+            <button type="button" class="icon-btn danger btn-del" title="删除">删除</button>
+          </div>
+        </div>
+        <div class="box">
+          <div class="box-title">领取状态</div>
+          <div class="pulse-meta">
+            <span>倒计时: <b class="countdown">{{ a.countdown }}</b>s</span>
+            <span class="muted small">userId {{ a.user_id }}</span>
+          </div>
+          <div class="action-line">当前: <span class="last-action">{{ a.last_action }}</span></div>
+          <div class="muted small">上次成功: <span class="last-ok">{{ a.last_ok or '-' }}</span>
+            · Token 获取: {{ a.token_get_time or '-' }}</div>
+          {% if a.last_message %}<div class="muted small">详情: {{ a.last_message }}</div>{% endif %}
+        </div>
+        <div class="acc-foot">
+          <label class="switch"><input type="checkbox" class="enabled-toggle" {% if a.enabled %}checked{% endif %} /> 启用定时领取</label>
+          <div class="row">
+            <button type="button" class="btn sm btn-relogin">短信续期</button>
+            <button type="button" class="btn sm primary btn-claim">立即领取</button>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+
+  <div class="modal" id="modal-add" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modal-add-title">添加账号</h3>
+        <button type="button" class="icon-btn" data-close="modal-add">×</button>
+      </div>
+      <div class="stack">
+        <label><span>备注名（可选）</span><input type="text" id="add-name" placeholder="主账号" /></label>
+        <label><span>手机号</span><input type="text" id="add-phone" maxlength="11" placeholder="11位手机号" /></label>
+        <div class="row">
+          <input type="text" id="add-code" maxlength="6" placeholder="短信验证码" />
+          <button type="button" class="btn" id="btn-send-sms">发送验证码</button>
+        </div>
+        <button type="button" class="btn primary block" id="btn-sms-login">确认登录</button>
+        <p class="muted small">登录成功后自动写入 config.json，并开启定时领取。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-settings" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>系统设置</h3>
+        <button type="button" class="icon-btn" data-close="modal-settings">×</button>
+      </div>
+      <div class="stack">
+        <label><span>PushPlus Token</span><input type="text" id="set-pushplus" value="{{ settings.pushplus_token }}" /></label>
+        <label><span>通知策略</span>
+          <select id="set-notify" style="padding:9px 11px;border-radius:10px;border:1px solid var(--line);">
+            <option value="important" {% if settings.notify == 'important' %}selected{% endif %}>important（仅成功/失效/失败）</option>
+            <option value="all" {% if settings.notify == 'all' %}selected{% endif %}>all（每次都推）</option>
+          </select>
+        </label>
+        <label><span>领取间隔（分钟，≥30）</span>
+          <input type="number" id="set-interval" min="30" max="1440" value="{{ settings.claim_interval_min }}" />
+        </label>
+        <label><span>领取模式</span>
+          <select id="set-claim-mode" style="padding:9px 11px;border-radius:10px;border:1px solid var(--line);">
+            <option value="api" {% if settings.claim_mode != 'browser' and settings.claim_mode != 'auto' %}selected{% endif %}>api（纯接口，无需 Chromium，推荐）</option>
+            <option value="auto" {% if settings.claim_mode == 'auto' %}selected{% endif %}>auto（先接口，失败再用浏览器）</option>
+            <option value="browser" {% if settings.claim_mode == 'browser' %}selected{% endif %}>browser（强制 Playwright）</option>
+          </select>
+        </label>
+        <div class="row">
+          <button type="button" class="btn" id="btn-test-push">测试推送</button>
+          <button type="button" class="btn primary" id="btn-save-settings">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
+    window.__BOOT__ = {{ {"accounts": accounts, "stats": stats, "settings": settings} | tojson }};
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

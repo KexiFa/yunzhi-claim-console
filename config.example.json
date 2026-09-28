@@ -1,0 +1,16 @@
+{
+  "web": {
+    "host": "0.0.0.0",
+    "port": 8788,
+    "username": "admin",
+    "password": "请修改为强密码",
+    "secret_key": "请改成一串随机长字符串"
+  },
+  "settings": {
+    "pushplus_token": "",
+    "notify": "important",
+    "claim_interval_min": 120,
+    "claim_mode": "api"
+  },
+  "accounts": []
+}

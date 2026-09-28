@@ -1,0 +1,13 @@
+services:
+  yunzhi:
+    build: .
+    ports:
+      - "8788:8788"
+    volumes:
+      - ./config.json:/app/config.json
+      - ./yz_ql_state.json:/app/yz_ql_state.json
+      - ./yz_login_state.json:/app/yz_login_state.json
+      - ./.yz_profiles:/app/.yz_profiles
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai

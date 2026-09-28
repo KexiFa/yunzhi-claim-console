@@ -1,0 +1,11 @@
+requests>=2.31.0
+Pillow>=10.0.0
+numpy>=1.24.0
+pycryptodome>=3.19.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+itsdangerous>=2.1.0
+# 默认 claim_mode=api 不需要浏览器；仅 auto/browser 模式才需要：
+#   pip install playwright && playwright install chromium

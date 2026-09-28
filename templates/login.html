@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>登录 · 云智手机领取控制台</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body class="auth-body">
+  <main class="auth-panel">
+    <div class="brand-row">
+      <span class="logo-mark">智</span>
+      <div>
+        <div class="brand-title">云智手机领取控制台</div>
+        <div class="brand-sub">多账号云机空间定时领取 · 短信登录 · PushPlus</div>
+      </div>
+    </div>
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/login" class="stack">
+      <label><span>账号</span><input type="text" name="username" required autofocus autocomplete="username" /></label>
+      <label><span>密码</span><input type="password" name="password" required autocomplete="current-password" /></label>
+      <button type="submit" class="btn primary block">登录</button>
+    </form>
+  </main>
+</body>
+</html>

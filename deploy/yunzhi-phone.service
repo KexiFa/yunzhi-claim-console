@@ -1,0 +1,18 @@
+[Unit]
+Description=Yunzhi Cloud Phone Claim Web Console
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/cty_phone
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Shanghai
+ExecStart=/home/ubuntu/cty_phone/.venv/bin/python web_app.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
