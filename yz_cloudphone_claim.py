@@ -8,6 +8,9 @@
   打开页面后首页弹「今日登录福利」→ 点「开心收下」→ 额度到账 →
   benefit/claim 延期（或新开）云机 +2 天。
   Playwright 无头浏览器完成"开页面+点弹框"，其余走纯API。
+  页面加载时前端还会自动试领「中国电信APP专属福利·云机空间31天」等
+  体验权益（sales-gift/try-claim，benefitType=4），本模块一并捕获其
+  结果，已领则同样进入 benefit/claim 流程（无需额外发请求）。
 
 【推荐部署】Linux Web：python web_app.py（config.example.json）
 【CLI】python yz_cloudphone_claim.py  （读 config.json；兼容环境变量 yz_token）
@@ -259,6 +262,26 @@ def _claimable_popup(x):
     return bt in (1, 3) and x.get("state") in ("CAN_CLAIM", None) and x.get("canClaim") is not False
 
 
+def parse_sales_gift(body_text):
+    """解析页面自动试领的 sales-gift/try-claim 响应（体验权益，benefitType=4）。
+    返回 (是否有已领, 说明文案)。接口由前端在页面加载时自动触发，本函数只读结果。"""
+    try:
+        obj = json.loads(body_text)
+    except Exception:
+        return False, ""
+    items = ((obj.get("data") or {}).get("items")) or []
+    hit, names = False, []
+    for it in items:
+        name = (it.get("popupName") or it.get("benefitName")
+                or it.get("salesProductName") or "体验权益")
+        got = bool(it.get("success") or it.get("claimed"))
+        hit = hit or got            # 有已领条目 → 额度可能已到账，值得再过一遍权益确认
+        names.append(f"{name}({'已领' if got else '待领'})")
+    if not names:
+        return hit, ""
+    return hit, "体验权益: " + "、".join(names)
+
+
 def api_popup_flow(dno, token):
     """纯 API 领弹框（不需要 Chromium）。
     调 home-popups/init → 有可领弹框则 HMAC 签名 claim。
@@ -337,10 +360,12 @@ def _browser_path():
 
 async def _pw_flow_async(token, dno, account_id="default"):
     """打开活动页 → 注入token → 等弹框 → 点「开心收下」
-    返回 (状态, 说明)：claimed=弹框已领  wait=额度未刷新  expired/fail"""
+    返回 (状态, 说明)：claimed=弹框/体验权益已领  wait=额度未刷新  expired/fail
+    同时被动捕获页面自动试领的 sales-gift/try-claim（31天体验权益）。"""
     from playwright.async_api import async_playwright
 
-    api = {"user_info": None, "init": None, "popup_claim": [], "pool": None, "gen": 0}
+    api = {"user_info": None, "init": None, "popup_claim": [], "pool": None,
+           "sales": None, "gen": 0}
     async with async_playwright() as p:
         kw = dict(
             user_data_dir=_profile_dir(account_id),
@@ -366,6 +391,8 @@ async def _pw_flow_async(token, dno, account_id="default"):
                         api["user_info"] = {"status": response.status, "body": await response.text(), "gen": api["gen"]}
                     elif "home-popups/init" in url:
                         api["init"] = {"status": response.status, "body": await response.text(), "gen": api["gen"]}
+                    elif "home-popups/sales-gift/try-claim" in url:
+                        api["sales"] = {"status": response.status, "body": await response.text(), "gen": api["gen"]}
                     elif "/home-popups/" in url and "/claim" in url:
                         api["popup_claim"].append({"status": response.status, "body": await response.text(), "gen": api["gen"]})
                     elif "lobster/pool/byUser" in url:
@@ -381,6 +408,7 @@ async def _pw_flow_async(token, dno, account_id="default"):
 
             # 进入第2代（reload 后）：丢弃第1代（旧token）的响应，避免旧 401 被误判
             api["user_info"] = None; api["init"] = None; api["pool"] = None; api["popup_claim"] = []
+            api["sales"] = None
             api["gen"] = 2
 
             await page.evaluate(
@@ -421,8 +449,17 @@ async def _pw_flow_async(token, dno, account_id="default"):
             if not api["init"]:
                 # 二次等待：刷新确认按钮点击后页面 reload，init 可能重发
                 await page.wait_for_timeout(3000)
+            # 体验权益（31天等）由页面加载时自动 try-claim，稍等其响应落袋
+            if api["sales"] is None:
+                await page.wait_for_timeout(1500)
+            sales_got, sales_msg = parse_sales_gift((api["sales"] or {}).get("body") or "")
+            if sales_msg:
+                log(sales_msg)
             if not api["init"]:
-                return "wait", "额度未刷新（页面无待领弹框）"
+                if sales_got:
+                    return "claimed", sales_msg + "（页面无待领弹框）"
+                return "wait", ("额度未刷新（页面无待领弹框）"
+                                + (f" | {sales_msg}" if sales_msg else ""))
             try:
                 init = json.loads(api["init"]["body"])
             except Exception:
@@ -435,9 +472,13 @@ async def _pw_flow_async(token, dno, account_id="default"):
             target = next((x for x in popups if _claimable_popup(x)), None)
             if not popups:
                 # 弹框为空 = 今日已领或额度已通过其他渠道到账（弹框领取后即消失）
-                return "done", "今日已领（页面无待领弹框）"
+                if sales_got:
+                    return "claimed", sales_msg + "（页面无待领弹框，进入额度确认）"
+                return "done", "今日已领（页面无待领弹框）" + (f" | {sales_msg}" if sales_msg else "")
             if not target:
-                return "wait", "弹框均为非领取类(广告)，无需操作"
+                if sales_got:
+                    return "claimed", sales_msg + "（弹框均非领取类，进入额度确认）"
+                return "wait", "弹框均为非领取类(广告)，无需操作" + (f" | {sales_msg}" if sales_msg else "")
             pid = target.get("id") or target.get("popupId")
             btn_text = target.get("buttonText") or "立即领取"
             log(f"发现弹框 id={pid}「{target.get('popupName') or target.get('title') or ''}」按钮「{btn_text}」")

@@ -8,6 +8,7 @@
 
 - Web 面板：添加 / 续期账号、手动领取、开关定时
 - 后台调度：按间隔自动领取（当日已领自动跳过）
+- 自动捕获页面加载时前端试领的「体验权益」（云机空间31天，sales-gift/try-claim），与每日登录福利一并领取
 - Token 失效提醒（PushPlus）
 - 领取模式可选：`api` / `auto` / `browser`
 
@@ -63,6 +64,9 @@ sudo systemctl enable --now yunzhi-phone
 | `api` | 纯接口（推荐，无需浏览器） |
 | `auto` | 先接口，失败再用 Playwright |
 | `browser` | 强制 Playwright |
+
+> 体验权益（云机空间31天）由活动页前端在加载时自动试领，仅 `auto` / `browser`
+> （走 Playwright）模式可捕获；`api` 模式不经过页面，不会触发。
 
 `auto` / `browser` 需额外安装：
 
